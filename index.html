@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>AR 图片体验</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #000;
+    }
+
+    /* 承载 AR 的 iframe */
+    iframe#kivicubeScene {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      z-index: 1;
+    }
+
+    /* 自定义状态提示层 */
+    #statusLayer {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      max-width: 90%;
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 13px;
+      text-align: center;
+      display: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 自定义操作按钮层 */
+    #controlLayer {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      gap: 12px;
+    }
+    #controlLayer button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 24px;
+      background: #fff;
+      color: #111;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    #controlLayer button:active { transform: scale(0.96); }
+
+    /* 加载中动画 */
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      color: #fff;
+      font-size: 14px;
+    }
+    #loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+
+  <!-- 引入 Kivicube iframe 插件脚本 -->
+  <script src="https://www.kivicube.com/lib/iframe-plugin.js"></script>
+</head>
+
+<body>
+  <!-- 加载提示 -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>正在加载 AR 场景...</div>
+  </div>
+
+  <!-- 状态提示条 -->
+  <div id="statusLayer"></div>
+
+  <!-- 操作按钮 -->
+  <div id="controlLayer">
+    <button id="btnStart" style="display:none">开始体验</button>
+    <button id="btnRescan" style="display:none">重新扫描</button>
+  </div>
+
+  <!-- AR 场景 iframe（填入你的 scene-id） -->
+  <iframe
+    id="kivicubeScene"
+    scene-id="pN45X82F0y5792X4I4N2CO8342J59XOp"
+    title="Kivicube XR Scene"
+  ></iframe>
+
+  <script>
+    const iframeEl = document.getElementById('kivicubeScene');
+    const statusLayer = document.getElementById('statusLayer');
+    const loading = document.getElementById('loading');
+    const btnStart = document.getElementById('btnStart');
+    const btnRescan = document.getElementById('btnRescan');
+
+    // 这里配置你的动态导入图片 URL（换成你自己的 HTTPS 图片地址）
+    const DYNAMIC_IMAGE_URL = 'tex/tex1.jpg';
+
+    let api = null;
+
+    // 显示状态提示
+    function showStatus(text, autoHide = 2500) {
+      statusLayer.textContent = text;
+      statusLayer.style.display = 'block';
+      clearTimeout(showStatus._timer);
+      if (autoHide) {
+        showStatus._timer = setTimeout(() => {
+          statusLayer.style.display = 'none';
+        }, autoHide);
+      }
+    }
+
+    /* ---------- iframe 事件监听 ---------- */
+
+    // ready：拿到 api（场景基础信息就绪）
+    iframeEl.addEventListener('ready', (event) => {
+      api = event.detail.api;
+      console.log('API 就绪');
+    });
+
+    // sceneStart：场景开始，可体验。此时动态导入图片
+    iframeEl.addEventListener('sceneStart', async () => {
+      loading.style.display = 'none';
+      btnStart.style.display = 'inline-block';
+      btnRescan.style.display = 'inline-block';
+      showStatus('请将摄像头对准识别图', 3000);
+
+      if (!api) return;
+
+      try {
+        // 动态导入一张图片作为显示内容（替代 3D 摆件）
+        const image = await api.createImage(DYNAMIC_IMAGE_URL);
+        await api.add(image);
+        // 摆放位置和缩放（示例：放在识别图上方）
+        await api.setPosition(image, 0, 1.2, 0);
+        await api.setScale(image, 1.5, 1.5, 1.5);
+        console.log('动态图片已导入');
+      } catch (e) {
+        console.error('导入图片失败:', e);
+        showStatus('图片加载失败', 3000);
+      }
+    });
+
+    // tracked：成功识别到目标图
+    iframeEl.addEventListener('tracked', () => {
+      showStatus('识别成功！', 2000);
+    });
+
+    // lostTrack：丢失目标
+    iframeEl.addEventListener('lostTrack', () => {
+      showStatus('已丢失目标，请重新对准', 2000);
+    });
+
+    // error：加载错误或权限失败
+    iframeEl.addEventListener('error', (event) => {
+      const detail = event.detail;
+      const msg = (detail && detail.message) ? detail.message : '加载出错';
+      showStatus('错误：' + msg, 4000);
+      console.error('Plugin error:', detail);
+    });
+
+    // incompatibility：兼容性检测失败
+    iframeEl.addEventListener('incompatibility', () => {
+      showStatus('设备不支持 AR，请使用较新版本的浏览器/微信', 4000);
+    });
+
+    /* ---------- 按钮 ---------- */
+
+    // 开始体验：允许 iframe 进入场景（隐藏默认开始按钮由 Plugin 处理，这里用于提示）
+    btnStart.addEventListener('click', () => {
+      showStatus('正在进入...', 1500);
+    });
+
+    // 重新扫描（适用于合辑，或刷新场景重新识别）
+    btnRescan.addEventListener('click', () => {
+      if (api && typeof api.backToScan === 'function') {
+        api.backToScan();
+      } else {
+        // 普通场景则刷新 iframe 重新开始
+        iframeEl.src = iframeEl.src;
+      }
+    });
+  </script>
+</body>
+</html>
