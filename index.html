@@ -94,9 +94,9 @@
       try {
         const image = await api.createImage(DYNAMIC_IMAGE_URL);
         await api.add(image);
-        await api.setPosition(image, 0, 1.1, 0);
+        await api.setPosition(image, 0, 1.0, 0);
         await api.setScale(image, 0.4, 0.4, 0.4);
-		await api.setRotation(image, -Math.PI/3, 0, 0);
+		await api.setRotation(image, 0, 0, 0);
         console.log('动态图片已导入');
       } catch (e) {
         console.error('导入图片失败:', e);
