@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
+  <!-- 移动端适配，务必保留 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AR 图片体验</title>
   <style>
@@ -32,6 +33,9 @@
       background: #000;
       color: #fff;
       font-size: 14px;
+      text-align: center;
+      padding: 0 24px;
+      box-sizing: border-box;
     }
   </style>
 </head>
@@ -39,7 +43,11 @@
   <!-- 加载提示（sceneStart 后隐藏） -->
   <div id="loading">正在加载 AR 场景...</div>
 
-  <!-- AR 场景 iframe，用 scene-id（Web Plugin 方式） -->
+  <!--
+    ⚠️ 注意：
+    1. 必须把 scene-id 换成你自己的场景 ID（在平台「开发与接入」中复制）
+    2. 本页必须部署在 HTTPS 域名下（或 http://localhost）才能调用摄像头
+  -->
   <iframe
     id="kivicubeScene"
     scene-id="pN45X82F0y5792X4I4N2CO8342J59XOp"
@@ -54,8 +62,10 @@
     const iframeEl = document.getElementById('kivicubeScene');
     const loading = document.getElementById('loading');
 
-    // 动态导入的图片地址（换成你实际的 HTTPS 图片 URL）
-    const DYNAMIC_IMAGE_URL = 'tex/tex1.jpg';
+    // ⚠️【关键修改】图片地址必须是完整的 HTTPS 绝对地址，
+    // 不能用相对路径（如 tex/tex1.jpg），否则会被解析到 kivicube.com 域名下导致加载失败。
+    // 同时建议该图片允许跨域（CORS）。
+    const DYNAMIC_IMAGE_URL = 'https://duxttyiyi.github.io/arkivi/tex/tex1.jpg';
 
     let api = null;
 
@@ -71,7 +81,7 @@
       if (!api) return;
 
       try {
-        // 动态导入一张 2D 图片作为显示内容（替代 3D 摆件）
+        // 动态导入一张 2D 图片作为显示内容
         const image = await api.createImage(DYNAMIC_IMAGE_URL);
         await api.add(image);
         // 摆放在识别图上方，并设置缩放
@@ -79,6 +89,7 @@
         await api.setScale(image, 1.5, 1.5, 1.5);
         console.log('动态图片已导入');
       } catch (e) {
+        // 图片加载失败不影响 AR 场景本身，只记录日志
         console.error('导入图片失败:', e);
       }
     });
@@ -87,7 +98,20 @@
     iframeEl.addEventListener('error', (event) => {
       const detail = event.detail;
       console.error('Plugin error:', detail);
+      loading.style.display = 'flex';
       loading.textContent = '加载失败：' + ((detail && detail.message) || '未知错误');
+    });
+
+    // incompatibility：兼容性兜底（浏览器不支持摄像头 / PC 端打开等）
+    iframeEl.addEventListener('incompatibility', (event) => {
+      const detail = event.detail || {};
+      console.warn('兼容性检测失败:', detail);
+      loading.style.display = 'flex';
+      if (detail.needMobile) {
+        loading.textContent = '请在手机端浏览器中打开本页面体验 AR。';
+      } else {
+        loading.textContent = '当前浏览器不支持 AR 体验，请更换浏览器或设备。';
+      }
     });
   </script>
 </body>
