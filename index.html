@@ -2,7 +2,6 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <!-- 移动端适配，务必保留 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AR 图片体验</title>
   <style>
@@ -13,7 +12,6 @@
       overflow: hidden;
       background: #000;
     }
-    /* iframe 铺满全屏 */
     #kivicubeScene {
       position: fixed;
       inset: 0;
@@ -22,7 +20,6 @@
       border: 0;
       display: block;
     }
-    /* 加载提示层 */
     #loading {
       position: fixed;
       inset: 0;
@@ -40,14 +37,9 @@
   </style>
 </head>
 <body>
-  <!-- 加载提示（sceneStart 后隐藏） -->
   <div id="loading">正在加载 AR 场景...</div>
 
-  <!--
-    ⚠️ 注意：
-    1. 必须把 scene-id 换成你自己的场景 ID（在平台「开发与接入」中复制）
-    2. 本页必须部署在 HTTPS 域名下（或 http://localhost）才能调用摄像头
-  -->
+  <!-- ⚠️ 把 scene-id 换成你自己的场景 ID -->
   <iframe
     id="kivicubeScene"
     scene-id="pN45X82F0y5792X4I4N2CO8342J59XOp"
@@ -55,19 +47,24 @@
     allowfullscreen
   ></iframe>
 
-  <!-- 引入 Kivicube iframe 插件脚本（放在 body 末尾） -->
   <script src="https://www.kivicube.com/lib/iframe-plugin.js"></script>
 
   <script>
     const iframeEl = document.getElementById('kivicubeScene');
     const loading = document.getElementById('loading');
 
-    // ⚠️【关键修改】图片地址必须是完整的 HTTPS 绝对地址，
-    // 不能用相对路径（如 tex/tex1.jpg），否则会被解析到 kivicube.com 域名下导致加载失败。
-    // 同时建议该图片允许跨域（CORS）。
+    // ⚠️ 必须是完整的 HTTPS 绝对地址
     const DYNAMIC_IMAGE_URL = 'https://duxttyiyi.github.io/arkivi/tex/tex1.jpg';
 
     let api = null;
+
+    // 统一隐藏加载层的函数（加一个 flag 防止重复执行）
+    let loadingHidden = false;
+    function hideLoading() {
+      if (loadingHidden) return;
+      loadingHidden = true;
+      loading.style.display = 'none';
+    }
 
     // ready：拿到 api（场景基础信息就绪）
     iframeEl.addEventListener('ready', (event) => {
@@ -75,43 +72,54 @@
       console.log('API 就绪');
     });
 
-    // sceneStart：场景已开始，此时隐藏加载层并动态导入图片
+    // ⚠️【关键修改】在场景加载结束时隐藏加载层，而不是 sceneStart
+    iframeEl.addEventListener('loadSceneEnd', () => {
+      console.log('场景加载完成，隐藏加载层');
+      hideLoading();
+    });
+
+    // 兜底：万一某些场景类型没触发 loadSceneEnd，
+    // 也在 downloadAssetEnd（素材下载完成）时放开加载层
+    iframeEl.addEventListener('downloadAssetEnd', () => {
+      console.log('素材下载完成');
+      hideLoading();
+    });
+
+    // sceneStart：场景正式开始（图像AR/云识别场景下，这是"扫描到识别图"之后）
+    // 此时加载层早已隐藏，这里只做内容相关的操作
     iframeEl.addEventListener('sceneStart', async () => {
-      loading.style.display = 'none';
+      hideLoading(); // 再兜底一次
       if (!api) return;
 
       try {
-        // 动态导入一张 2D 图片作为显示内容
         const image = await api.createImage(DYNAMIC_IMAGE_URL);
         await api.add(image);
-        // 摆放在识别图上方，并设置缩放
         await api.setPosition(image, 0, 1.2, 0);
         await api.setScale(image, 1.5, 1.5, 1.5);
         console.log('动态图片已导入');
       } catch (e) {
-        // 图片加载失败不影响 AR 场景本身，只记录日志
         console.error('导入图片失败:', e);
       }
     });
 
-    // error：捕获加载/权限错误（便于排查）
+    // error：捕获加载/权限错误
     iframeEl.addEventListener('error', (event) => {
       const detail = event.detail;
       console.error('Plugin error:', detail);
+      loadingHidden = false;
       loading.style.display = 'flex';
       loading.textContent = '加载失败：' + ((detail && detail.message) || '未知错误');
     });
 
-    // incompatibility：兼容性兜底（浏览器不支持摄像头 / PC 端打开等）
+    // incompatibility：兼容性兜底
     iframeEl.addEventListener('incompatibility', (event) => {
       const detail = event.detail || {};
       console.warn('兼容性检测失败:', detail);
+      loadingHidden = false;
       loading.style.display = 'flex';
-      if (detail.needMobile) {
-        loading.textContent = '请在手机端浏览器中打开本页面体验 AR。';
-      } else {
-        loading.textContent = '当前浏览器不支持 AR 体验，请更换浏览器或设备。';
-      }
+      loading.textContent = detail.needMobile
+        ? '请在手机端浏览器中打开本页面体验 AR。'
+        : '当前浏览器不支持 AR 体验，请更换浏览器或设备。';
     });
   </script>
 </body>
